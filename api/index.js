@@ -5,13 +5,24 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// Explicit CORS for production frontend
+app.use(cors({
+  origin: ["https://poker-chips-frontend.vercel.app", "http://localhost:5173"],
+  methods: ["GET", "POST"]
+}));
+
 app.use(express.json());
+
+// Root route to fix "Cannot GET /" and provide health check
+app.get('/', (req, res) => {
+  res.json({ message: "Poker Chips Backend is running ⚡" });
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: ["https://poker-chips-frontend.vercel.app", "http://localhost:5173"],
     methods: ["GET", "POST"]
   }
 });
@@ -36,7 +47,6 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (room) {
       if (room.players.find(p => p.name === playerName)) {
-        // Simple re-join logic for demo: update ID if name matches
         const existing = room.players.find(p => p.name === playerName);
         existing.id = socket.id;
       } else {
@@ -120,3 +130,5 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
+module.exports = server;
