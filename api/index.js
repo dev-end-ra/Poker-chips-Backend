@@ -81,6 +81,7 @@ io.on('connection', (socket) => {
       if (existingPlayer) {
         existingPlayer.id = socket.id;
         room.logs.unshift(`${cleanPlayerName} reconnected`);
+        room.logs = room.logs.slice(0, 50);
       } else {
         const newPlayer = {
           id: socket.id,
@@ -90,6 +91,7 @@ io.on('connection', (socket) => {
         };
         room.players.push(newPlayer);
         room.logs.unshift(`${cleanPlayerName} joined the room`);
+        room.logs = room.logs.slice(0, 50);
       }
       socket.join(cleanRoomId);
       io.to(cleanRoomId).emit('room-update', room);
@@ -109,6 +111,7 @@ io.on('connection', (socket) => {
         player.bet += amount;
         room.pot += amount;
         room.logs.unshift(`${player.name} bet ${amount}`);
+        room.logs = room.logs.slice(0, 50);
         io.to(room.id).emit('room-update', room);
       }
     }
@@ -124,6 +127,7 @@ io.on('connection', (socket) => {
         room.pot = 0;
         room.players.forEach(p => p.bet = 0);
         room.logs.unshift(`${winner.name} won the pot of ${winAmount}`);
+        room.logs = room.logs.slice(0, 50);
         io.to(room.id).emit('room-update', room);
       }
     }
@@ -138,6 +142,7 @@ io.on('connection', (socket) => {
         p.bet = 0;
       });
       room.logs.unshift(`Game reset by host`);
+      room.logs = room.logs.slice(0, 50);
       io.to(room.id).emit('room-update', room);
     }
   });
