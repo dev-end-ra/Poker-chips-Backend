@@ -56,42 +56,52 @@ io.on('connection', (socket) => {
   console.log('a user connected', socket.id);
 
   socket.on('create-room', ({ roomId, initialChips }) => {
-    rooms.set(roomId, {
-      id: roomId,
+    const cleanRoomId = roomId.trim();
+    rooms.set(cleanRoomId, {
+      id: cleanRoomId,
       players: [],
-      initialChips,
+      initialChips: Number(initialChips) || 1000,
       pot: 0,
-      logs: [`Room created with ${initialChips} initial chips`]
+      logs: [`Room created with ${initialChips} initial chips`],
+      hostId: socket.id // The creator is the host
     });
-    console.log(`Room created: ${roomId}`);
+    console.log(`Room created: ${cleanRoomId}`);
   });
 
   socket.on('join-room', ({ roomId, playerName }) => {
-    const room = rooms.get(roomId);
+    const cleanRoomId = roomId.trim();
+    const cleanPlayerName = playerName.trim();
+    const room = rooms.get(cleanRoomId);
+    
     if (room) {
-      if (room.players.find(p => p.name === playerName)) {
-        const existing = room.players.find(p => p.name === playerName);
-        existing.id = socket.id;
+      // If room has no host (e.g. from a previous session that crashed), take over
+      if (!room.hostId) room.hostId = socket.id;
+
+      const existingPlayer = room.players.find(p => p.name === cleanPlayerName);
+      if (existingPlayer) {
+        existingPlayer.id = socket.id;
+        room.logs.unshift(`${cleanPlayerName} reconnected`);
       } else {
         const newPlayer = {
           id: socket.id,
-          name: playerName,
+          name: cleanPlayerName,
           chips: room.initialChips,
           bet: 0
         };
         room.players.push(newPlayer);
-        room.logs.unshift(`${playerName} joined the room`);
+        room.logs.unshift(`${cleanPlayerName} joined the room`);
       }
-      socket.join(roomId);
-      io.to(roomId).emit('room-update', room);
-      console.log(`${playerName} joined room ${roomId}`);
+      socket.join(cleanRoomId);
+      io.to(cleanRoomId).emit('room-update', room);
+      console.log(`${cleanPlayerName} joined room ${cleanRoomId}`);
     } else {
-      socket.emit('error', 'Room not found');
+      console.log(`Join attempt for non-existent room: ${cleanRoomId}`);
+      socket.emit('error', 'Room not found. Please check the ID or create a new one.');
     }
   });
 
   socket.on('place-bet', ({ roomId, amount }) => {
-    const room = rooms.get(roomId);
+    const room = rooms.get(roomId.trim());
     if (room) {
       const player = room.players.find(p => p.id === socket.id);
       if (player && player.chips >= amount) {
@@ -99,14 +109,14 @@ io.on('connection', (socket) => {
         player.bet += amount;
         room.pot += amount;
         room.logs.unshift(`${player.name} bet ${amount}`);
-        io.to(roomId).emit('room-update', room);
+        io.to(room.id).emit('room-update', room);
       }
     }
   });
 
   socket.on('win-pot', ({ roomId, winnerId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
+    const room = rooms.get(roomId.trim());
+    if (room && room.hostId === socket.id) { // Only host can award pot
       const winner = room.players.find(p => p.id === winnerId);
       if (winner) {
         const winAmount = room.pot;
@@ -114,38 +124,27 @@ io.on('connection', (socket) => {
         room.pot = 0;
         room.players.forEach(p => p.bet = 0);
         room.logs.unshift(`${winner.name} won the pot of ${winAmount}`);
-        io.to(roomId).emit('room-update', room);
+        io.to(room.id).emit('room-update', room);
       }
     }
   });
 
   socket.on('reset-game', (roomId) => {
-    const room = rooms.get(roomId);
-    if (room) {
+    const room = rooms.get(roomId.trim());
+    if (room && room.hostId === socket.id) { // Only host can reset
       room.pot = 0;
       room.players.forEach(p => {
         p.chips = room.initialChips;
         p.bet = 0;
       });
       room.logs.unshift(`Game reset by host`);
-      io.to(roomId).emit('room-update', room);
+      io.to(room.id).emit('room-update', room);
     }
   });
 
   socket.on('disconnect', () => {
     console.log('user disconnected', socket.id);
-    for (const [roomId, room] of rooms.entries()) {
-      const playerIndex = room.players.findIndex(p => p.id === socket.id);
-      if (playerIndex !== -1) {
-        room.players.splice(playerIndex, 1);
-        if (room.players.length === 0) {
-          rooms.delete(roomId);
-        } else {
-          io.to(roomId).emit('room-update', room);
-        }
-        break;
-      }
-    }
+    // Note: hostId remains even if host disconnects, allowing them to reconnect as host
   });
 });
 
