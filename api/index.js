@@ -9,7 +9,7 @@ const app = express();
 // Update CORS to allow any subdomains of vercel.app and localhost for development
 const allowedOrigins = [
   "https://poker-chips-frontend.vercel.app",
-  "https://poker-chips-backend.onrender.com", // Placeholder for Render URL
+  "https://poker-orjq.onrender.com",
   "http://localhost:5173",
   "http://localhost:3000"
 ];
