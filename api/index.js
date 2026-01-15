@@ -6,10 +6,24 @@ require('dotenv').config();
 
 const app = express();
 
-// Explicit CORS for production frontend
+// Update CORS to allow any subdomains of vercel.app and localhost for development
+const allowedOrigins = [
+  "https://poker-chips-frontend.vercel.app",
+  "https://poker-chips-backend.onrender.com", // Placeholder for Render URL
+  "http://localhost:5173",
+  "http://localhost:3000"
+];
+
 app.use(cors({
-  origin: ["https://poker-chips-frontend.vercel.app", "http://localhost:5173"],
-  methods: ["GET", "POST"]
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app") || origin.endsWith(".onrender.com")) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST"],
+  credentials: true
 }));
 
 app.use(express.json());
@@ -24,7 +38,13 @@ const io = new Server(server, {
   path: '/socket.io',
   addTrailingSlash: false,
   cors: {
-    origin: ["https://poker-chips-frontend.vercel.app", "http://localhost:5173"],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app") || origin.endsWith(".onrender.com")) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -130,10 +150,8 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-if (process.env.NODE_ENV !== 'production') {
-  server.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
-}
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
 
 module.exports = server;
